@@ -9,7 +9,7 @@ Hacky library for interfacing with AmScope MU1603/Touptek U3CMOS16000KPA
 Don't exactly know what I'm doing with this yet.
 
 There are no safety guarantees here, and it's not clear if you can damage the
-device by using this (my guess it probably *yes, very*). Proceed at your own risk.
+device by using this (my guess is probably **yes**). Proceed at your own risk.
 
 ## Prior Art
 
