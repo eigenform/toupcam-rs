@@ -1,5 +1,10 @@
 /target
+/doc
+/captures
 /Cargo.lock
 *.bin
 *.pdf
 *.pcapng
+*.txt
+*.csv
+*.raw
