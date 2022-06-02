@@ -1,15 +1,23 @@
 # toupcam-rs
 
-Hacky library for interfacing with AmScope MU1603/Touptek U3CMOS16000KPA 
-(TP116000A) USB3.0 CMOS cameras. 
+Hacky library for interfacing with the AmScope MU1603 (Touptek U3CMOS16000KPA)
+USB3.0 CMOS camera.
 
-- The VID/PID for this model is `0x0547:0x3016`
-- Product sheets say the sensor is a [Panasonic] MN34120?
+Don't exactly know what I'm doing with this yet. There are no safety guarantees
+here, and it's not clear if you can damage the device by using this (although
+my guess is probably **yes**). Proceed at your own risk.
 
-Don't exactly know what I'm doing with this yet.
+- `toupcam/` - Library crate
+- `toupcam-ui/` - Simple UI for live capture with SDL2 
+- `utils/` - Miscellania
 
-There are no safety guarantees here, and it's not clear if you can damage the
-device by using this (my guess is probably **yes**). Proceed at your own risk.
+## About
+
+The VID/PID for this model is `0x0547:0x3016`.
+I think the VID implies a Cypress USB microcontroller (perhaps the FX3)?
+
+Touptek product sheets say the sensor is a [Panasonic] MN34120, but it doesn't
+seem like there are any useful Panasonic datasheets for this part.
 
 ## Prior Art
 

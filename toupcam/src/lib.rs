@@ -12,7 +12,7 @@ use rusb::{
 
 /// Wrapper for [rusb::Error]
 #[derive(Debug)]
-enum Error { 
+pub enum Error { 
     Rusb(rusb::Error),
     FirstFrame,
 }
@@ -37,7 +37,7 @@ fn open_device<T: UsbContext>(ctx: &mut T, vid: u16, pid: u16)
 }
 
 /// Representing a camera device.
-struct Camera {
+pub struct Camera {
     ctx: Context,
     pub dev: Device<Context>,
     pub desc: DeviceDescriptor,
@@ -299,7 +299,7 @@ impl Camera {
     }
 
     /// Configure the device and start streaming data
-    fn start_stream(&mut self) -> Result<(), Error> {
+    pub fn start_stream(&mut self) -> Result<(), Error> {
         if self.streaming {
             return Ok(())
         }
@@ -337,7 +337,7 @@ impl Camera {
     }
 
     /// Stop streaming data.
-    fn stop_stream(&mut self) -> Result<(), Error> {
+    pub fn stop_stream(&mut self) -> Result<(), Error> {
         if !self.streaming {
             Ok(())
         } else {
@@ -426,7 +426,7 @@ impl Camera {
 }
 
 /// A raw frame from the sensor.
-struct Frame { 
+pub struct Frame { 
     pub height: usize,
     pub width: usize,
     pub raw16: bool,
@@ -439,38 +439,5 @@ impl Frame {
         Self { 
             height: h, width: w, raw16, size: sz, data: vec![0u8; sz] }
     }
-}
-
-
-// Just read a couple frames out to file and exit
-fn main() -> Result<(), Error> {
-
-    let mut cam = Camera::open(0x0547, 0x3016)?;
-    cam.start_stream()?;
-
-    let mut fidx = 0;
-    while fidx < 8 {
-        match cam.read_frame() {
-            Ok(frame) => {
-                let fname = format!("/tmp/img_{:03}.raw", fidx);
-                let mut f = File::create(&fname).unwrap();
-                f.write(&frame).unwrap();
-                println!("wrote {:08x} bytes to {}", frame.len(), fname);
-                fidx += 1;
-            },
-            Err(Error::FirstFrame) => {
-                println!("Skipped first frame");
-                continue;
-            },
-            Err(Error::Rusb(e)) => {
-                println!("{:?}", e);
-                break;
-            }
-        }
-    }
-
-    cam.stop_stream()?;
-
-    Ok(())
 }
 

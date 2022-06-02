@@ -1,7 +1,6 @@
-/target
 /doc
 /captures
-/Cargo.lock
+*.lock
 *.bin
 *.pdf
 *.pcapng
