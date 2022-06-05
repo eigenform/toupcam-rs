@@ -1,0 +1,6 @@
+[workspace]
+members = [
+	"toupcam",
+	"toupcam-ui",
+	"usbcap",
+]

@@ -8,7 +8,8 @@ here, and it's not clear if you can damage the device by using this (although
 my guess is probably **yes**). Proceed at your own risk.
 
 - `toupcam/` - Library crate
-- `toupcam-ui/` - Simple UI for live capture with SDL2 
+- `toupcam-ui/` - Simple SDL2 UI for live capture
+- `usbcap/` - Sniff USB control traffic from the device
 - `utils/` - Miscellania
 
 ## About

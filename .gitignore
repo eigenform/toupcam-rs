@@ -1,5 +1,4 @@
-/doc
-/captures
+/target
 *.lock
 *.bin
 *.pdf

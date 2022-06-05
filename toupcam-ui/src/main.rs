@@ -5,10 +5,14 @@ use bayer::{ RasterMut, RasterDepth };
 use std::sync::mpsc::*;
 use std::fs::File;
 use std::io::Read;
+use std::time::{ Instant, Duration };
 
 enum CameraCtrl {
     Stop
 }
+
+struct DataPacket { frame: toupcam::Frame, ts: Instant }
+
 
 fn main() {
 
@@ -20,8 +24,7 @@ fn main() {
     // All we need is a way to draw RGB24 textures.
     let sdl    = sdl2::init().unwrap();
     let video  = sdl.video().unwrap();
-    let window = video.window("test", 2320, 1740)
-        //.position(0, 0).opengl().build().unwrap();
+    let window = video.window("Preview", 2320, 1740)
         .position_centered().opengl().build().unwrap();
     let mut canvas = window.into_canvas().build().unwrap();
     let mut event_pump = sdl.event_pump().unwrap();
@@ -34,33 +37,36 @@ fn main() {
     // Spawn the camera thread.
     // Presumably the channel will buffer up pointers to frames for us.
     let handle = std::thread::spawn(move || -> Result<(), toupcam::Error> {
-        let mut cam = toupcam::Camera::open(0x0547, 0x3016)?;
+        let mut cam = toupcam::Camera::open()?;
         cam.start_stream()?;
         let mut fidx = 0;
         'main: loop {
+            match cam.read_frame() {
+                Ok(frame) => { 
+                    let pkt = DataPacket { frame, ts: Instant::now() };
+                    fidx += 1; 
+                    frame_tx.send(pkt).unwrap();
+                    println!("sent frame {}", fidx);
+                },
+                Err(toupcam::Error::FirstFrame) => { 
+                    println!("skipped first frame");
+                    continue; 
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    break 'main;
+                }
+            }
             match ctrl_rx.try_recv() {
+                Err(TryRecvError::Empty) => {},
                 Ok(msg) => {
                     println!("shutting down camera thread");
                     break 'main;
                 },
-                Err(TryRecvError::Empty) => {},
                 Err(TryRecvError::Disconnected) => {
                     println!("camera control disconnected?");
                     break 'main;
                 },
-            }
-
-            match cam.read_frame() {
-                Ok(frame) => { 
-                    fidx += 1; 
-                    frame_tx.send(frame).unwrap();
-                    println!("sent frame {}", fidx);
-                },
-                Err(toupcam::Error::FirstFrame) => { continue; },
-                Err(toupcam::Error::Rusb(e)) => {
-                    println!("{:?}", e);
-                    break 'main;
-                }
             }
         }
         cam.stop_stream()?;
@@ -68,36 +74,35 @@ fn main() {
         Ok(())
     });
 
-
+    // Allocation for the raster object.
+    // All of these pixels are recomputed each time we demosaic a frame
+    let mut rasbuf = vec![0; 6 * (2320 * 1740)];
 
     let mut connected = true;
     let mut redraw = true;
     'main: loop {
-        if let Some(e) = event_pump.wait_event_timeout(60) {
-            match e {
-                sdl2::event::Event::Quit { .. } => {
-                    println!("sent stop message to camera thread");
-                    ctrl_tx.send(CameraCtrl::Stop).unwrap();
-                    break 'main;
-                },
-                _ => (),
-            }
-        }
 
+        // If the camera thread is connected, try to read and process a frame
         if connected {
             match frame_rx.try_recv() {
-                Ok(frame) => {
+                Ok(pkt) => {
+                    println!("got {}", pkt.frame.data.len());
+                    let recv_ts = std::time::Instant::now();
+                    let recv_elapsed = pkt.ts.elapsed();
+
                     // Demosaic the raw frame
-                    let mut rasbuf = vec![0; 6 * (2320 * 1740)];
-                    let mut ras = RasterMut::new(2320, 1740, RasterDepth::Depth16, &mut rasbuf);
-                    bayer::run_demosaic(&mut frame.as_slice(), 
-                        bayer::BayerDepth::Depth16BE, bayer::CFA::BGGR, 
+                    let mut ras = RasterMut::new(2320, 1740, 
+                        RasterDepth::Depth16, &mut rasbuf);
+                    bayer::run_demosaic(&mut pkt.frame.data.as_slice(), 
+                        bayer::BayerDepth::Depth16BE, bayer::CFA::RGGB, 
                         bayer::Demosaic::Linear, &mut ras
                     );
 
                     let buf: &[u16] = unsafe { std::slice::from_raw_parts(
                         rasbuf.as_ptr() as *const u16, rasbuf.len() / 2)
                     };
+
+                    // Update the texture
                     texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
                         for y in 0..1740 {
                             let src_offset = (3 * 2320) * y;
@@ -108,7 +113,11 @@ fn main() {
                             }
                         }
                     }).unwrap();
+                    let upd_elapsed = recv_ts.elapsed();
                     redraw = true;
+
+                    println!("frame read={:?} recv={:?} upd={:?}", 
+                            pkt.frame.elapsed, recv_elapsed, upd_elapsed);
                 },
                 Err(TryRecvError::Empty) => {},
                 Err(TryRecvError::Disconnected) => {
@@ -120,11 +129,25 @@ fn main() {
         }
 
         if redraw {
+            // Redraw the canvas
             canvas.clear();
             let _ = canvas.copy(&texture, None, None);
             canvas.present();
             redraw = false;
         }
+
+        // Catch an SDL2 event (i.e. closing the window).
+        if let Some(e) = event_pump.wait_event_timeout(1) {
+            match e {
+                sdl2::event::Event::Quit { .. } => {
+                    println!("sent stop message to camera thread");
+                    ctrl_tx.send(CameraCtrl::Stop).unwrap();
+                    break 'main;
+                },
+                _ => (),
+            }
+        }
+
     }
 
     // Wait for the camera thread to close
